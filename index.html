@@ -1,0 +1,1555 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Lumina Optix — Refraction & Lens Calculator</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{margin:0;color:#fff;font-family:'Poppins',sans-serif;background:radial-gradient(ellipse at bottom,#0d1b2a 0%,#000 100%);-webkit-font-smoothing:antialiased}
+header{display:flex;justify-content:space-between;align-items:center;padding:15px 30px}
+h1{text-align:center;font-size:2rem;text-shadow:0 0 15px cyan;margin:0}
+.btn{padding:10px 20px;border:none;border-radius:10px;background:linear-gradient(90deg,#0077ff,#00d4ff);color:white;font-size:14px;cursor:pointer;transition:transform 0.18s cubic-bezier(.2,.9,.3,1), box-shadow 0.18s, opacity 0.18s, background 0.18s}
+.btn:hover{transform:scale(1.06);background:linear-gradient(90deg,#00d4ff,#0077ff);box-shadow:0 0 20px cyan}
+.btn:active{transform:scale(0.98) translateY(1px); opacity:0.95}
+.btn.pressed{transform:scale(0.94);box-shadow:0 0 30px rgba(0,220,255,0.28);opacity:0.95}
+.container{display:flex;flex-direction:column;justify-content:center;align-items:center;gap:20px;padding-bottom:60px}
+.panel{background:rgba(255,255,255,0.05);border-radius:15px;padding:20px;width:90%;max-width:900px;box-shadow:0 0 20px rgba(0,255,255,0.3);display:none}
+input, select, textarea{width:100%;padding:10px;border-radius:8px;border:none;margin-bottom:10px;background:rgba(255,255,255,0.02);color:#fff}
+select{appearance:none}
+textarea{min-height:48px;resize:vertical}
+.history{background:rgba(255,255,255,0.08);padding:10px;border-radius:10px;max-height:240px;overflow-y:auto;display:none}
+#howToUsePanel{background:rgba(255,255,255,0.1);padding:20px;border-radius:15px;width:90%;max-width:900px;margin:0 auto 20px;display:none;box-shadow:0 0 20px rgba(0,255,255,0.3);animation:fadeIn 0.5s ease}
+@keyframes fadeIn{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:translateY(0)}}
+canvas#galaxy{position:fixed;top:0;left:0;z-index:-1}
+#calcOptions{overflow:hidden;max-height:0;opacity:0;display:flex;flex-direction:column;gap:10px;transition:all 0.45s ease}
+#calcOptions.show{max-height:320px;opacity:1}
+#overlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;backdrop-filter:blur(5px);background:rgba(0,0,0,0.5);justify-content:center;align-items:center;z-index:999}
+#overlayContent{background:rgba(0,0,0,0.92);padding:20px;border-radius:15px;max-width:900px;width:94%;position:relative;color:#fff}
+.small{width:48%;display:inline-block}
+.graphBox{background:rgba(255,255,255,0.03);padding:8px;border-radius:12px;margin-top:10px}
+#calcGraph,#analyzerGraph{width:100%;height:220px;border-radius:10px;display:block}
+#drawPad{border-radius:8px;margin-top:10px;background:transparent}
+.panel h2{margin-bottom:10px}
+.historyItem{padding:6px;border-bottom:1px dashed rgba(255,255,255,0.03);font-size:14px}
+.label-row{display:flex;gap:8px}
+.label-row .small{width:32%}
+.kv{font-size:13px;color:#dff;white-space:pre-wrap}
+.result-block{background:rgba(0,0,0,0.18);padding:10px;border-radius:10px;margin-top:8px}
+.info{font-size:13px;color:#bfe}
+.note{font-size:12px;color:#9db}
+.medium-display{background:rgba(255,255,255,0.05);padding:10px;border-radius:8px;margin:5px 0;text-align:center}
+.angle-display{font-size:16px;color:#0ff;font-weight:bold}
+.touch-area { touch-action: none; }
+.ray-control { margin: 10px 0; }
+.ray-control label { display: flex; align-items: center; gap: 10px; }
+.ray-control input { width: 100px; }
+.lens-option { margin: 5px 0; }
+.lens-option select, .lens-option input { margin-bottom: 5px; }
+.angle-label { font-size: 12px; fill: #fff; }
+.ray-point { fill: #ff0; stroke: #000; stroke-width: 1; }
+</style>
+</head>
+<body>
+<canvas id="galaxy"></canvas>
+<header>
+  <button class="btn" onclick="toggle('howToUsePanel')">❔ How to Use</button>
+  <h1>✨ Lumina Optix ✨<br>Refraction & Lens Calculator</h1>
+  <button class="btn" onclick="toggle('historyPanel')">📜 History</button>
+</header>
+
+<div id="howToUsePanel">
+  <h2>📘 How to Use Lumina Optix</h2>
+  <p class="info"><b>Calculator Mode</b><br>- Click "Calculator Mode" → pick Snell or Lens. Fill known values; leave unknown blank → Compute. The Answer displays above, and the animated graph will plot Given and Answer (animated).</p>
+  <p class="info"><b>Problem Analyzer</b><br>- Enter a description (e.g., "Light from air n1=1 n2=1.5 θ1=40°"). Hit Analyze → you'll get Detected, Given, Formula, Steps (solution detailed), Answer and an animated graph.</p>
+  <p class="info"><b>Experiment Lab</b><br>- Open the Lab, drag the orange flashlight and rotate with touch/click. Choose experiment type Refraction or Lens. Real-time ray tracing with exact angle calculations.</p>
+  <button class="btn" onclick="toggle('howToUsePanel')">Close</button>
+</div>
+
+<div class="container">
+  <button class="btn" onclick="toggleCalcOptions()">🔢 Calculator Mode</button>
+  <div id="calcOptions">
+    <button class="btn" onclick="chooseMode('calculator')">🧮 Calculator</button>
+    <button class="btn" onclick="chooseMode('analyzer')">🔍 Problem Analyzer</button>
+    <button class="btn" onclick="chooseMode('game')">🎮 Experiment Lab</button>
+  </div>
+
+  <!-- Problem Analyzer -->
+  <div id="analyzer" class="panel">
+    <h2>🔍 Problem Analyzer</h2>
+    <input id="problemText" type="text" placeholder="Enter any optical problem (e.g., Light from air n1=1 n2=1.5 θ1=40°, or Multi-lens system f1=10 f2=15 do=25)">
+    <div style="margin-top:8px"><button class="btn" onclick="analyzeProblem()">Analyze & Solve</button></div>
+    <div id="analyzerResult" class="result-block" style="margin-top:12px">—</div>
+    <div class="graphBox"><canvas id="analyzerGraph" width="800" height="220"></canvas></div>
+  </div>
+
+  <!-- Calculator -->
+  <div id="calculator" class="panel">
+    <h2>🧮 Calculator</h2>
+    <div style="display:flex;gap:8px">
+      <button class="btn small" onclick="setCalcMode('snell')">Snell's Law</button>
+      <button class="btn small" onclick="setCalcMode('lens')">Lens Equation</button>
+    </div>
+    <div id="calcInputs" style="margin-top:12px"></div>
+    <div style="margin-top:12px">
+      <b>Solution:</b>
+      <div id="answerText" class="result-block" style="margin-top:8px">—</div>
+      <div class="graphBox"><canvas id="calcGraph" width="800" height="220"></canvas></div>
+    </div>
+  </div>
+
+  <!-- Enhanced Experiment Lab -->
+  <div id="game" class="panel">
+    <h2>🎮 Enhanced Experiment Lab</h2>
+
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <label class="small">Experiment Type
+        <select id="experimentType" onchange="updateLabInterface()">
+          <option value="refraction">Refraction</option>
+          <option value="lens">Lens</option>
+        </select>
+      </label>
+
+      <label class="small">Upper Medium (n₁)
+        <select id="upperMedium" onchange="updateMedium('upper')">
+          <option value="1.0">Air (n=1.0)</option>
+          <option value="1.33">Water (n=1.33)</option>
+          <option value="1.5">Glass (n=1.5)</option>
+          <option value="1.7">Flint Glass (n=1.7)</option>
+          <option value="custom">Custom</option>
+        </select>
+      </label>
+
+      <label class="small" id="upperCustomContainer" style="display:none">
+        Custom n₁ <input id="upperCustom" type="number" value="1.0" step="0.001" onchange="updateCustomMedium('upper')">
+      </label>
+    </div>
+
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px" id="lowerMediumSection">
+      <label class="small">Lower Medium (n₂)
+        <select id="lowerMedium" onchange="updateMedium('lower')">
+          <option value="1.33">Water (n=1.33)</option>
+          <option value="1.5">Glass (n=1.5)</option>
+          <option value="1.7">Flint Glass (n=1.7)</option>
+          <option value="2.42">Diamond (n=2.42)</option>
+          <option value="custom">Custom</option>
+        </select>
+      </label>
+      
+      <label class="small" id="lowerCustomContainer" style="display:none">
+        Custom n₂ <input id="lowerCustom" type="number" value="1.5" step="0.001" onchange="updateCustomMedium('lower')">
+      </label>
+    </div>
+
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px" id="lensConfigSection" style="display:none">
+      <label class="small">Lens Type
+        <select id="lensType" onchange="updateLens()">
+          <option value="convex">Convex</option>
+          <option value="concave">Concave</option>
+          <option value="plano_convex">Plano-Convex</option>
+          <option value="plano_concave">Plano-Concave</option>
+          <option value="meniscus">Meniscus</option>
+        </select>
+      </label>
+      
+      <label class="small">Focal Length (cm)
+        <input id="focalLength" type="number" value="10" step="0.1" onchange="updateLens()">
+      </label>
+
+      <label class="small">Environment
+        <select id="lensEnvironment" onchange="updateLens()">
+          <option value="1.0">Air (n=1.0)</option>
+          <option value="1.33">Water (n=1.33)</option>
+          <option value="1.5">Glass (n=1.5)</option>
+          <option value="custom_env">Custom</option>
+        </select>
+      </label>
+
+      <label class="small" id="envCustomContainer" style="display:none">
+        Custom Env n <input id="envCustom" type="number" value="1.0" step="0.001" onchange="updateLens()">
+      </label>
+    </div>
+
+    <!-- Ray Control -->
+    <div class="ray-control">
+      <label>
+        Number of Rays: 
+        <input id="rayCount" type="range" min="1" max="11" value="5" step="2" onchange="updateRayCount()">
+        <span id="rayCountDisplay">5</span>
+      </label>
+    </div>
+
+    <!-- Enhanced Real-time Angle Display -->
+    <div style="background:rgba(255,255,255,0.05);padding:15px;border-radius:10px;margin:15px 0">
+      <div style="display:flex;gap:15px;justify-content:space-around;flex-wrap:wrap">
+        <div style="text-align:center">
+          <div style="font-size:12px;color:#bfe">Incident Angle (θ₁)</div>
+          <div id="angle1Display" class="angle-display">0.00°</div>
+        </div>
+        <div style="text-align:center">
+          <div style="font-size:12px;color:#bfe">Refracted Angle (θ₂)</div>
+          <div id="angle2Display" class="angle-display">0.00°</div>
+        </div>
+        <div style="text-align:center">
+          <div style="font-size:12px;color:#bfe">Critical Angle</div>
+          <div id="criticalAngleDisplay" class="angle-display" style="color:#ff0">41.81°</div>
+        </div>
+        <div style="text-align:center">
+          <div style="font-size:12px;color:#bfe">Reflection Angle</div>
+          <div id="reflectionAngleDisplay" class="angle-display" style="color:#f0f">0.00°</div>
+        </div>
+      </div>
+    </div>
+
+    <div style="margin-top:10px;display:flex;gap:8px">
+      <button class="btn" onclick="openLab()">Open Lab</button>
+      <button class="btn" onclick="resetLab()">Reset</button>
+      <button class="btn" onclick="toggleRayNumbers()">Toggle Ray Numbers</button>
+    </div>
+
+    <p class="info" style="margin-top:8px">Drag orange flashlight; rotate via touch/click on the handle. Real-time angle calculations displayed above.</p>
+
+    <div style="margin-top:12px;background:rgba(255,255,255,0.02);padding:8px;border-radius:12px">
+      <canvas id="labCanvas" width="760" height="400" style="display:block;border-radius:8px" class="touch-area"></canvas>
+    </div>
+  </div>
+
+  <div class="history" id="historyPanel" style="display:none">
+    <h3>📜 Computation History</h3>
+    <div id="historyList"></div>
+  </div>
+</div>
+
+<script>
+/* -------------------------
+   Background Galaxy
+   ------------------------- */
+const galaxy=document.getElementById('galaxy'), gctx=galaxy.getContext('2d');
+let stars=[];
+function resizeGalaxy(){ galaxy.width=innerWidth; galaxy.height=innerHeight; stars=Array.from({length:200},()=>({x:Math.random()*galaxy.width,y:Math.random()*galaxy.height,r:Math.random()*2,dx:(Math.random()-0.5)*0.6,dy:(Math.random()-0.5)*0.6})); }
+resizeGalaxy(); window.addEventListener('resize',resizeGalaxy);
+(function animateGalaxy(){ gctx.clearRect(0,0,galaxy.width,galaxy.height); gctx.fillStyle='white'; stars.forEach(s=>{ gctx.beginPath(); gctx.arc(s.x,s.y,s.r,0,Math.PI*2); gctx.fill(); s.x+=s.dx; s.y+=s.dy; if(s.x<0||s.x>galaxy.width) s.dx*=-1; if(s.y<0||s.y>galaxy.height) s.dy*=-1; }); requestAnimationFrame(animateGalaxy); })();
+
+/* -------------------------
+   UI helpers
+   ------------------------- */
+function toggle(id){ const e=document.getElementById(id); e.style.display=(e.style.display==='block') ? 'none' : 'block'; }
+function toggleCalcOptions(){ document.getElementById('calcOptions').classList.toggle('show'); }
+function chooseMode(id){
+  ['analyzer','calculator','game'].forEach(i=>document.getElementById(i).style.display='none');
+  document.getElementById(id).style.display='block';
+  document.getElementById('calcOptions').classList.remove('show');
+}
+
+// Add button press animation
+document.addEventListener('click', e=>{
+  const b = e.target.closest('.btn');
+  if(!b) return;
+  b.classList.add('pressed');
+  setTimeout(()=>b.classList.remove('pressed'), 180);
+});
+
+/* -------------------------
+   History System
+   ------------------------- */
+function pushHistory(title, html){
+  const list = document.getElementById('historyList');
+  const div = document.createElement('div');
+  div.className = 'historyItem';
+  div.innerHTML = `<b>${title}</b><div style="font-size:13px;margin-top:6px">${html}</div>`;
+  list.prepend(div);
+  document.getElementById('historyPanel').style.display = 'block';
+}
+
+/* -------------------------
+   Problem Analyzer - Complete Implementation
+   ------------------------- */
+async function analyzeProblem(){
+  const raw = document.getElementById('problemText').value.trim();
+  if(!raw){ alert('Please enter a problem description.'); return; }
+  
+  try {
+    const results = localProblemAnalysis(raw);
+    displayAnalyzerResults(results);
+    
+  } catch(err) {
+    console.error('Analyzer error:', err);
+    const results = localProblemAnalysis(raw);
+    displayAnalyzerResults(results);
+  }
+}
+
+function localProblemAnalysis(problemText) {
+  const text = problemText.toLowerCase();
+  const params = extractParametersLocal(problemText);
+  
+  let results = [];
+  
+  // Refraction problems
+  if (anyWordInText(text, ["refract", "snell", "angle", "n1", "n2", "theta"])) {
+    const n1 = params.get('n1') || 1.0;
+    const n2 = params.get('n2') || 1.5;
+    const theta1 = params.get('theta1') || 30.0;
+    
+    const result = localCalcSnell(n1, n2, theta1);
+    results.push(result);
+  }
+  // Lens problems
+  else if (anyWordInText(text, ["lens", "focal", "object", "image", "f=", "do=", "di="])) {
+    const f = params.get('f');
+    const doVal = params.get('do');
+    const diVal = params.get('di');
+    
+    const result = localCalcLens(f, doVal, diVal);
+    results.push(result);
+  }
+  else {
+    results.push({
+      Detected: "Optical Problem",
+      Given: "Could not identify specific problem type",
+      Formula: "Please include keywords like: refraction, lens, focal, angle",
+      Steps: "Try rephrasing with specific optical terms",
+      Answer: "Unable to analyze - please provide more context"
+    });
+  }
+  
+  return results;
+}
+
+function anyWordInText(text, words) {
+  return words.some(word => text.includes(word));
+}
+
+function extractParametersLocal(text) {
+  const params = new Map();
+  
+  // Extract numbers with various patterns
+  const numberPatterns = [
+    { pattern: /n1\s*[=:]\s*(\d+\.?\d*)/gi, key: 'n1' },
+    { pattern: /n2\s*[=:]\s*(\d+\.?\d*)/gi, key: 'n2' },
+    { pattern: /theta1\s*[=:]\s*(\d+\.?\d*)/gi, key: 'theta1' },
+    { pattern: /θ1\s*[=:]\s*(\d+\.?\d*)/gi, key: 'theta1' },
+    { pattern: /angle\s*[=:]\s*(\d+\.?\d*)/gi, key: 'theta1' },
+    { pattern: /f\s*[=:]\s*(\d+\.?\d*)/gi, key: 'f' },
+    { pattern: /focal\s*[=:]\s*(\d+\.?\d*)/gi, key: 'f' },
+    { pattern: /do\s*[=:]\s*(\d+\.?\d*)/gi, key: 'do' },
+    { pattern: /di\s*[=:]\s*(\d+\.?\d*)/gi, key: 'di' },
+    { pattern: /object\s*[=:]\s*(\d+\.?\d*)/gi, key: 'do' },
+    { pattern: /image\s*[=:]\s*(\d+\.?\d*)/gi, key: 'di' }
+  ];
+  
+  numberPatterns.forEach(({pattern, key}) => {
+    const matches = text.match(pattern);
+    if (matches && matches[0]) {
+      const value = parseFloat(matches[0].split(/[=:]/)[1].trim());
+      if (!isNaN(value)) {
+        params.set(key, value);
+      }
+    }
+  });
+  
+  return params;
+}
+
+function localCalcSnell(n1, n2, theta1) {
+  const theta1_rad = theta1 * Math.PI / 180;
+  const sin_theta1 = Math.sin(theta1_rad);
+  const sin_theta2 = (n1 / n2) * sin_theta1;
+  
+  const steps = [
+    `Step 1: sinθ₂ = (n₁ / n₂) × sinθ₁ = (${n1} / ${n2}) × sin(${theta1}°)`,
+    `Step 2: sinθ₂ = ${(n1/n2).toFixed(6)} × ${sin_theta1.toFixed(6)} = ${sin_theta2.toFixed(8)}`
+  ];
+  
+  if (Math.abs(sin_theta2) > 1) {
+    const critical_angle = Math.asin(n2/n1) * 180 / Math.PI;
+    steps.push(`Step 3: |sinθ₂| = ${Math.abs(sin_theta2).toFixed(6)} > 1 → Total Internal Reflection`);
+    steps.push(`Step 4: Critical Angle = arcsin(n₂/n₁) = arcsin(${n2}/${n1}) = ${critical_angle.toFixed(6)}°`);
+    
+    return {
+      Detected: "Refraction Problem - Total Internal Reflection",
+      Given: `n₁ = ${n1}, n₂ = ${n2}, θ₁ = ${theta1}°`,
+      Formula: "n₁ × sinθ₁ = n₂ × sinθ₂",
+      Steps: steps.join('\n'),
+      Answer: `Total Internal Reflection occurs\nCritical Angle: ${critical_angle.toFixed(6)}°`,
+      animationData: {
+        type: "tir",
+        n1: n1,
+        n2: n2,
+        theta1: theta1,
+        critical_angle: critical_angle
+      }
+    };
+  } else {
+    const theta2 = Math.asin(sin_theta2) * 180 / Math.PI;
+    steps.push(`Step 3: θ₂ = arcsin(${sin_theta2.toFixed(6)}) = ${theta2.toFixed(6)}°`);
+    
+    return {
+      Detected: "Refraction Problem",
+      Given: `n₁ = ${n1}, n₂ = ${n2}, θ₁ = ${theta1}°`,
+      Formula: "Snell's Law: n₁ × sinθ₁ = n₂ × sinθ₂",
+      Steps: steps.join('\n'),
+      Answer: `θ₂ = ${theta2.toFixed(6)}°`,
+      animationData: {
+        type: "refraction",
+        n1: n1,
+        n2: n2,
+        theta1: theta1,
+        theta2: theta2
+      }
+    };
+  }
+}
+
+function localCalcLens(f, doVal, diVal) {
+  const steps = [];
+  let resultValue = null;
+  let find = "";
+  const animation_data = {};
+  
+  // Count provided values
+  const provided = [f, doVal, diVal].filter(val => val !== undefined && val !== null).length;
+  
+  if (provided !== 2) {
+    return {
+      Detected: "Lens Problem",
+      Given: `f = ${f || '?'}, do = ${doVal || '?'}, di = ${diVal || '?'}`,
+      Formula: "1/f = 1/do + 1/di",
+      Steps: "Error: Please provide exactly two of the three values",
+      Answer: "Insufficient data provided"
+    };
+  }
+  
+  if (f !== undefined && doVal !== undefined && diVal === undefined) {
+    find = "di";
+    const di_calc = 1 / ((1/f) - (1/doVal));
+    steps.push(
+      `Step 1: 1/di = 1/f - 1/do = 1/${f} - 1/${doVal}`,
+      `Step 2: 1/di = ${(1/f).toFixed(6)} - ${(1/doVal).toFixed(6)} = ${(1/f - 1/doVal).toFixed(6)}`,
+      `Step 3: di = 1 / ${(1/f - 1/doVal).toFixed(6)} = ${di_calc.toFixed(6)} cm`
+    );
+    Object.assign(animation_data, { type: "lens", f: f, do: doVal, di: di_calc });
+    resultValue = di_calc;
+  }
+  else if (f !== undefined && diVal !== undefined && doVal === undefined) {
+    find = "do";
+    const do_calc = 1 / ((1/f) - (1/diVal));
+    steps.push(
+      `Step 1: 1/do = 1/f - 1/di = 1/${f} - 1/${diVal}`,
+      `Step 2: 1/do = ${(1/f).toFixed(6)} - ${(1/diVal).toFixed(6)} = ${(1/f - 1/diVal).toFixed(6)}`,
+      `Step 3: do = 1 / ${(1/f - 1/diVal).toFixed(6)} = ${do_calc.toFixed(6)} cm`
+    );
+    Object.assign(animation_data, { type: "lens", f: f, do: do_calc, di: diVal });
+    resultValue = do_calc;
+  }
+  else if (doVal !== undefined && diVal !== undefined && f === undefined) {
+    find = "f";
+    const f_calc = 1 / ((1/doVal) + (1/diVal));
+    steps.push(
+      `Step 1: 1/f = 1/do + 1/di = 1/${doVal} + 1/${diVal}`,
+      `Step 2: 1/f = ${(1/doVal).toFixed(6)} + ${(1/diVal).toFixed(6)} = ${(1/doVal + 1/diVal).toFixed(6)}`,
+      `Step 3: f = 1 / ${(1/doVal + 1/diVal).toFixed(6)} = ${f_calc.toFixed(6)} cm`
+    );
+    Object.assign(animation_data, { type: "lens", f: f_calc, do: doVal, di: diVal });
+    resultValue = f_calc;
+  }
+  
+  return {
+    Detected: "Lens Problem",
+    Given: `f = ${f || '?'}, do = ${doVal || '?'}, di = ${diVal || '?'}`,
+    Formula: "Thin Lens Equation: 1/f = 1/do + 1/di",
+    Steps: steps.join('\n'),
+    Answer: `${find} = ${resultValue.toFixed(6)} cm`,
+    animationData: animation_data
+  };
+}
+
+function displayAnalyzerResults(results) {
+  const out = document.getElementById('analyzerResult');
+  
+  if (!results || results.length === 0) {
+    out.innerHTML = '<div class="kv"><b>Error:</b> No results returned</div>';
+    return;
+  }
+  
+  let html = '';
+  
+  results.forEach(result => {
+    html += `
+      <div><b>Detected:</b> ${result.Detected || 'Problem'}</div>
+      <div class="kv"><b>Given:</b> ${result.Given || '—'}</div>
+      <div class="kv"><b>Formula:</b> ${result.Formula || '—'}</div>
+      <div class="kv"><b>Solution Steps:</b><br>${(result.Steps || '—').replace(/\n/g, '<br>')}</div>
+      <div class="kv"><b>Answer:</b> ${result.Answer || '—'}</div>
+    `;
+  });
+  
+  out.innerHTML = html;
+  pushHistory('Problem Analyzer', results[0]?.Answer || 'Analysis complete');
+  
+  // Generate animated graph
+  if (results[0]?.animationData) {
+    generateAnimatedGraph(results[0].animationData, 'analyzerGraph');
+  }
+}
+
+/* -------------------------
+   Calculator - Complete Implementation
+   ------------------------- */
+let calcMode = 'snell';
+
+function setCalcMode(mode){
+  calcMode = mode;
+  const ci = document.getElementById('calcInputs');
+  
+  if(mode === 'snell'){
+    ci.innerHTML = `
+      <div class="label-row">
+        <label class="small">n₁<input id="n1" type="number" value="1.000" step="0.001"></label>
+        <label class="small">n₂<input id="n2" type="number" value="1.500" step="0.001"></label>
+        <label class="small">θ₁ (°)<input id="theta1" type="number" value="40.000" step="0.001"></label>
+      </div>
+      <div style="margin-top:8px"><button class="btn" onclick="computeCalc()">Compute Exact Solution</button></div>
+    `;
+  } else {
+    ci.innerHTML = `
+      <div class="label-row">
+        <label class="small">f (cm)<input id="f" type="number" value="10.000" step="0.001"></label>
+        <label class="small">do (cm)<input id="do" type="number" value="25.000" step="0.001"></label>
+        <label class="small">di (cm)<input id="di" type="number" placeholder="(leave blank to compute)" step="0.001"></label>
+      </div>
+      <div style="margin-top:8px"><button class="btn" onclick="computeCalc()">Compute Exact Solution</button></div>
+    `;
+  }
+}
+
+function computeCalc(){
+  const answerEl = document.getElementById('answerText');
+  answerEl.innerHTML = 'Computing...';
+  
+  try {
+    let result;
+    
+    if(calcMode === 'snell'){
+      const n1 = parseFloat(document.getElementById('n1').value) || 1.0;
+      const n2 = parseFloat(document.getElementById('n2').value) || 1.5;
+      const theta1 = parseFloat(document.getElementById('theta1').value) || 0;
+      
+      // Use local calculation
+      const localResult = localCalcSnell(n1, n2, theta1);
+      result = {
+        result: localResult.Answer,
+        calculation_steps: localResult.Steps.split('\n'),
+        exact_value: parseFloat(localResult.Answer.match(/-?\d+\.\d+/)?.[0]) || localResult.Answer,
+        animation_data: localResult.animationData
+      };
+    } else {
+      const f = document.getElementById('f').value ? parseFloat(document.getElementById('f').value) : undefined;
+      const doVal = document.getElementById('do').value ? parseFloat(document.getElementById('do').value) : undefined;
+      const diVal = document.getElementById('di').value ? parseFloat(document.getElementById('di').value) : undefined;
+      
+      // Use local calculation
+      const localResult = localCalcLens(f, doVal, diVal);
+      const exactValue = parseFloat(localResult.Answer.match(/-?\d+\.\d+/)?.[0]);
+      result = {
+        result: localResult.Answer,
+        calculation_steps: localResult.Steps.split('\n'),
+        exact_value: exactValue,
+        animation_data: localResult.animationData
+      };
+    }
+    
+    displayCalculatorResult(result);
+    
+  } catch(err) {
+    console.error('Calculator error:', err);
+    answerEl.innerHTML = `<div class="kv"><b>Error:</b> ${err.message}</div>`;
+  }
+}
+
+function displayCalculatorResult(result) {
+  const answerEl = document.getElementById('answerText');
+  
+  if(result.error){
+    answerEl.innerHTML = `<div class="kv"><b>Error:</b> ${result.error}</div>`;
+    return;
+  }
+  
+  let html = '';
+  if(calcMode === 'snell'){
+    const n1 = document.getElementById('n1').value;
+    const n2 = document.getElementById('n2').value;
+    const theta1 = document.getElementById('theta1').value;
+    
+    html = `
+      <div class="kv"><b>Given:</b> n₁ = ${n1}, n₂ = ${n2}, θ₁ = ${theta1}°</div>
+      <div class="kv"><b>Formula:</b> n₁ × sinθ₁ = n₂ × sinθ₂</div>
+      <div class="kv"><b>Solution Steps:</b><br>${(result.calculation_steps?.join('<br>') || 'Calculation steps').replace(/\n/g, '<br>')}</div>
+      <div class="kv"><b>Exact Answer:</b> ${typeof result.exact_value === 'number' ? `θ₂ = ${result.exact_value.toFixed(6)}°` : result.result}</div>
+    `;
+    pushHistory("Snell's Law", typeof result.exact_value === 'number' ? `θ₂ = ${result.exact_value.toFixed(6)}°` : result.result);
+  } else {
+    const f = document.getElementById('f').value || '?';
+    const doVal = document.getElementById('do').value || '?';
+    const diVal = document.getElementById('di').value || '?';
+    
+    html = `
+      <div class="kv"><b>Given:</b> f = ${f} cm, do = ${doVal} cm, di = ${diVal} cm</div>
+      <div class="kv"><b>Formula:</b> 1/f = 1/do + 1/di</div>
+      <div class="kv"><b>Solution Steps:</b><br>${(result.calculation_steps?.join('<br>') || 'Calculation steps').replace(/\n/g, '<br>')}</div>
+      <div class="kv"><b>Exact Answer:</b> ${result.result || 'Calculation complete'}</div>
+    `;
+    pushHistory("Lens Equation", result.result || 'Calculation complete');
+  }
+  
+  answerEl.innerHTML = html;
+  
+  // Generate animated graph
+  if(result.animation_data){
+    generateAnimatedGraph(result.animation_data, 'calcGraph');
+  }
+}
+
+/* -------------------------
+   Animated Graph System
+   ------------------------- */
+function generateAnimatedGraph(animationData, canvasId) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) return;
+  
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width = 800;
+  const H = canvas.height = 220;
+  
+  let animationFrame;
+  let startTime = null;
+  
+  function animate(currentTime) {
+    if (!startTime) startTime = currentTime;
+    const elapsed = currentTime - startTime;
+    const progress = Math.min(elapsed / 2000, 1);
+    
+    ctx.clearRect(0, 0, W, H);
+    
+    if (animationData) {
+      switch(animationData.type) {
+        case 'refraction':
+          drawAnimatedRefraction(ctx, W, H, animationData, progress);
+          break;
+        case 'lens':
+          drawAnimatedLens(ctx, W, H, animationData, progress);
+          break;
+        case 'tir':
+          drawAnimatedTIR(ctx, W, H, animationData, progress);
+          break;
+        default:
+          drawBasicGraph(ctx, W, H, animationData, progress);
+      }
+    }
+    
+    if (progress < 1) {
+      animationFrame = requestAnimationFrame(animate);
+    }
+  }
+  
+  if (animationFrame) {
+    cancelAnimationFrame(animationFrame);
+  }
+  
+  animationFrame = requestAnimationFrame(animate);
+}
+
+function drawAnimatedRefraction(ctx, W, H, data, progress) {
+  const centerY = H / 2;
+  const interfaceX = W / 2;
+  
+  // Draw media
+  ctx.fillStyle = 'rgba(100, 150, 255, 0.1)';
+  ctx.fillRect(0, 0, interfaceX, H);
+  ctx.fillStyle = 'rgba(255, 150, 100, 0.1)';
+  ctx.fillRect(interfaceX, 0, W - interfaceX, H);
+  
+  // Draw interface
+  ctx.strokeStyle = '#fff';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(interfaceX, 0);
+  ctx.lineTo(interfaceX, H);
+  ctx.stroke();
+  
+  // Animated rays
+  const animatedProgress = progress * 1.5 - 0.3;
+  
+  if (animatedProgress > 0) {
+    const effectiveProgress = Math.min(animatedProgress, 1);
+    
+    // Incident ray
+    const startX = 50;
+    const startY = centerY - 50;
+    const currentX = startX + (interfaceX - startX) * effectiveProgress;
+    
+    ctx.strokeStyle = '#0ff';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(startX, startY);
+    ctx.lineTo(currentX, startY);
+    ctx.stroke();
+    
+    // Refracted ray
+    if (effectiveProgress > 0.7 && data.theta2) {
+      const refractedProgress = (effectiveProgress - 0.7) / 0.3;
+      const refractedLength = 150 * refractedProgress;
+      const theta2_rad = data.theta2 * Math.PI / 180;
+      
+      ctx.strokeStyle = '#f0f';
+      ctx.beginPath();
+      ctx.moveTo(interfaceX, startY);
+      ctx.lineTo(interfaceX + Math.cos(theta2_rad) * refractedLength, 
+                 startY + Math.sin(theta2_rad) * refractedLength);
+      ctx.stroke();
+    }
+  }
+  
+  // Labels
+  ctx.fillStyle = '#bfe';
+  ctx.font = '14px Poppins';
+  ctx.fillText(`n₁ = ${data.n1}`, interfaceX/2 - 30, 30);
+  ctx.fillText(`n₂ = ${data.n2}`, interfaceX + 30, 30);
+  if (data.theta1) {
+    ctx.fillText(`θ₁ = ${data.theta1}°`, interfaceX/2 - 30, H - 20);
+  }
+  if (data.theta2) {
+    ctx.fillText(`θ₂ = ${data.theta2.toFixed(2)}°`, interfaceX + 30, H - 20);
+  }
+}
+
+function drawAnimatedLens(ctx, W, H, data, progress) {
+  const centerY = H / 2;
+  const lensX = W / 2;
+  
+  // Draw optical axis
+  ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(50, centerY);
+  ctx.lineTo(W - 50, centerY);
+  ctx.stroke();
+  
+  // Draw lens
+  ctx.strokeStyle = '#0ff';
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.ellipse(lensX, centerY, 15, 60, 0, 0, Math.PI * 2);
+  ctx.stroke();
+  
+  // Animated elements
+  const animatedProgress = progress * 1.5 - 0.3;
+  
+  if (animatedProgress > 0) {
+    const effectiveProgress = Math.min(animatedProgress, 1);
+    
+    // Object
+    const objectX = lensX - (data.do || 20) * 5;
+    const objectHeight = 30;
+    
+    ctx.fillStyle = '#0ff';
+    ctx.fillRect(objectX - 2, centerY - objectHeight, 4, objectHeight);
+    
+    // Image
+    if (data.di && effectiveProgress > 0.5) {
+      const imageProgress = (effectiveProgress - 0.5) / 0.5;
+      const imageX = lensX + data.di * 5;
+      const imageHeight = objectHeight * Math.abs(data.di / data.do) * imageProgress;
+      const imageColor = data.di > 0 ? '#f0f' : '#ff0';
+      
+      ctx.fillStyle = imageColor;
+      ctx.fillRect(imageX - 2, centerY - imageHeight, 4, imageHeight);
+    }
+  }
+  
+  // Labels
+  ctx.fillStyle = '#bfe';
+  ctx.font = '12px Poppins';
+  if (data.f) ctx.fillText(`f = ${data.f} cm`, lensX + 20, centerY - 40);
+  if (data.do) ctx.fillText(`do = ${data.do} cm`, lensX - 60, centerY - 40);
+  if (data.di) ctx.fillText(`di = ${data.di.toFixed(1)} cm`, lensX + 60, centerY - 40);
+}
+
+function drawAnimatedTIR(ctx, W, H, data, progress) {
+  const centerY = H / 2;
+  const interfaceX = W / 2;
+  
+  // Draw media
+  ctx.fillStyle = 'rgba(100, 150, 255, 0.1)';
+  ctx.fillRect(0, 0, interfaceX, H);
+  ctx.fillStyle = 'rgba(255, 100, 100, 0.1)';
+  ctx.fillRect(interfaceX, 0, W - interfaceX, H);
+  
+  // Draw interface
+  ctx.strokeStyle = '#fff';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(interfaceX, 0);
+  ctx.lineTo(interfaceX, H);
+  ctx.stroke();
+  
+  // Animated rays
+  const animatedProgress = progress * 1.2;
+  
+  if (animatedProgress > 0) {
+    const effectiveProgress = Math.min(animatedProgress, 1);
+    
+    // Incident ray
+    const startX = 50;
+    const startY = centerY - 50;
+    const currentX = startX + (interfaceX - startX) * effectiveProgress;
+    
+    ctx.strokeStyle = '#0ff';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(startX, startY);
+    ctx.lineTo(currentX, startY);
+    ctx.stroke();
+    
+    // Reflected ray
+    if (effectiveProgress > 0.8) {
+      const reflectionProgress = (effectiveProgress - 0.8) / 0.2;
+      const reflectionLength = 100 * reflectionProgress;
+      
+      ctx.strokeStyle = '#ff0';
+      ctx.setLineDash([5, 3]);
+      ctx.beginPath();
+      ctx.moveTo(interfaceX, startY);
+      ctx.lineTo(interfaceX - reflectionLength, startY + reflectionLength);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+  }
+  
+  // Labels
+  ctx.fillStyle = '#bfe';
+  ctx.font = '14px Poppins';
+  ctx.fillText('TOTAL INTERNAL REFLECTION', W/2 - 100, 30);
+  if (data.theta1 && data.critical_angle) {
+    ctx.fillText(`θ₁ = ${data.theta1}° > θ_critical = ${data.critical_angle.toFixed(2)}°`, W/2 - 120, 50);
+  }
+}
+
+function drawBasicGraph(ctx, W, H, data, progress = 1) {
+  ctx.fillStyle = '#bfe';
+  ctx.font = '16px Poppins';
+  ctx.fillText('Optical System Visualization', W/2 - 100, H/2 - 10);
+  ctx.font = '12px Poppins';
+  ctx.fillText('Calculation completed successfully', W/2 - 80, H/2 + 15);
+}
+
+/* -------------------------
+   Enhanced Experiment Lab with Proper Ray Bending
+   ------------------------- */
+const labCanvas = document.getElementById('labCanvas'), L = labCanvas.getContext('2d');
+let lab = { 
+  flashlight: { x: 120, y: 200, angle: 0 },
+  n1: 1.0,
+  n2: 1.5,
+  rayCount: 5,
+  envN: 1.0,
+  showRayNumbers: true
+};
+
+let dragging = false, rotating = false, dragOffset = { x: 0, y: 0 };
+
+function toggleRayNumbers() {
+  lab.showRayNumbers = !lab.showRayNumbers;
+  renderLab();
+}
+
+function updateLabInterface() {
+  const experimentType = document.getElementById('experimentType').value;
+  const lowerSection = document.getElementById('lowerMediumSection');
+  const lensSection = document.getElementById('lensConfigSection');
+  const envSelect = document.getElementById('lensEnvironment');
+  const envCustomContainer = document.getElementById('envCustomContainer');
+  
+  if (experimentType === 'lens') {
+    lowerSection.style.display = 'none';
+    lensSection.style.display = 'flex';
+    
+    // Update environment
+    if (envSelect.value === 'custom_env') {
+      envCustomContainer.style.display = 'block';
+      lab.envN = parseFloat(document.getElementById('envCustom').value) || 1.0;
+    } else {
+      envCustomContainer.style.display = 'none';
+      lab.envN = parseFloat(envSelect.value) || 1.0;
+    }
+  } else {
+    lowerSection.style.display = 'flex';
+    lensSection.style.display = 'none';
+    updateMedium('upper');
+    updateMedium('lower');
+  }
+  renderLab();
+}
+
+function updateMedium(type) {
+  const select = document.getElementById(`${type}Medium`);
+  const customContainer = document.getElementById(`${type}CustomContainer`);
+  
+  if (select.value === 'custom') {
+    customContainer.style.display = 'block';
+    const customValue = parseFloat(document.getElementById(`${type}Custom`).value) || 1.0;
+    lab[`n${type === 'upper' ? 1 : 2}`] = customValue;
+  } else {
+    customContainer.style.display = 'none';
+    lab[`n${type === 'upper' ? 1 : 2}`] = parseFloat(select.value);
+  }
+  renderLab();
+}
+
+function updateCustomMedium(type) {
+  const customValue = parseFloat(document.getElementById(`${type}Custom`).value) || 1.0;
+  lab[`n${type === 'upper' ? 1 : 2}`] = customValue;
+  renderLab();
+}
+
+function updateLens() {
+  const envSelect = document.getElementById('lensEnvironment');
+  const envCustomContainer = document.getElementById('envCustomContainer');
+  
+  if (envSelect.value === 'custom_env') {
+    envCustomContainer.style.display = 'block';
+    lab.envN = parseFloat(document.getElementById('envCustom').value) || 1.0;
+  } else {
+    envCustomContainer.style.display = 'none';
+    lab.envN = parseFloat(envSelect.value) || 1.0;
+  }
+  renderLab();
+}
+
+function updateRayCount() {
+  const rayCount = parseInt(document.getElementById('rayCount').value);
+  lab.rayCount = rayCount;
+  document.getElementById('rayCountDisplay').textContent = rayCount;
+  renderLab();
+}
+
+function openLab() {
+  renderLab();
+}
+
+function resetLab() {
+  document.getElementById('experimentType').value = 'refraction';
+  document.getElementById('upperMedium').value = '1.0';
+  document.getElementById('lowerMedium').value = '1.5';
+  document.getElementById('lensEnvironment').value = '1.0';
+  document.getElementById('rayCount').value = '5';
+  document.getElementById('rayCountDisplay').textContent = '5';
+  
+  document.getElementById('upperCustomContainer').style.display = 'none';
+  document.getElementById('lowerCustomContainer').style.display = 'none';
+  document.getElementById('envCustomContainer').style.display = 'none';
+  
+  lab = { 
+    flashlight: { x: 120, y: 200, angle: 0 },
+    n1: 1.0,
+    n2: 1.5,
+    rayCount: 5,
+    envN: 1.0,
+    showRayNumbers: true
+  };
+  
+  updateLabInterface();
+  renderLab();
+}
+
+function renderLab() {
+  L.clearRect(0, 0, labCanvas.width, labCanvas.height);
+  L.save();
+  
+  // Draw background
+  L.fillStyle = 'rgba(0, 0, 0, 0.9)';
+  L.fillRect(0, 0, labCanvas.width, labCanvas.height);
+  
+  const centerY = labCanvas.height / 2;
+  const interfaceX = 400;
+  const experimentType = document.getElementById('experimentType').value;
+  
+  if (experimentType === 'refraction') {
+    drawRefractionSetup(L, labCanvas.width, labCanvas.height, lab.n1, lab.n2);
+  } else {
+    const focalLength = parseFloat(document.getElementById('focalLength').value) || 10;
+    const lensType = document.getElementById('lensType').value;
+    drawLensSetup(L, labCanvas.width, labCanvas.height, focalLength, lensType, lab.envN);
+  }
+  
+  drawFlashlight(L, lab.flashlight.x, lab.flashlight.y, lab.flashlight.angle);
+  traceAndDrawRays(L, lab.flashlight.x, lab.flashlight.y, lab.flashlight.angle, experimentType);
+  updateRealTimeDisplays();
+  
+  L.restore();
+}
+
+function drawRefractionSetup(ctx, width, height, n1, n2) {
+  const centerY = height / 2;
+  const interfaceX = 400;
+  
+  // Draw upper medium
+  ctx.fillStyle = `rgba(100, 150, 255, ${0.1 + n1 * 0.05})`;
+  ctx.fillRect(0, 0, width, centerY);
+  
+  // Draw lower medium
+  ctx.fillStyle = `rgba(255, 150, 100, ${0.1 + n2 * 0.05})`;
+  ctx.fillRect(0, centerY, width, centerY);
+  
+  // Draw interface
+  ctx.strokeStyle = '#fff';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(0, centerY);
+  ctx.lineTo(width, centerY);
+  ctx.stroke();
+  
+  // Draw given parameters
+  ctx.fillStyle = '#bfe';
+  ctx.font = '14px Poppins';
+  ctx.fillText(`Given Parameters:`, 20, 30);
+  ctx.font = '12px Poppins';
+  ctx.fillText(`n₁ = ${n1}`, 40, 50);
+  ctx.fillText(`n₂ = ${n2}`, 40, 70);
+  
+  // Draw critical angle indicator if applicable
+  if (n2 < n1) {
+    const criticalAngle = Math.asin(n2/n1) * 180 / Math.PI;
+    ctx.fillStyle = 'rgba(255, 255, 0, 0.3)';
+    ctx.beginPath();
+    ctx.moveTo(interfaceX, centerY);
+    ctx.lineTo(interfaceX - 100, centerY - Math.tan(criticalAngle * Math.PI/180) * 100);
+    ctx.stroke();
+    ctx.fillText(`Critical: ${criticalAngle.toFixed(2)}°`, interfaceX - 120, centerY - 50);
+  }
+}
+
+function drawLensSetup(ctx, width, height, focalLength, lensType, envN) {
+  const centerY = height / 2;
+  const lensX = 400;
+  
+  // Draw environment with proper color based on refractive index
+  const envAlpha = 0.1 + envN * 0.03;
+  ctx.fillStyle = `rgba(100, 150, 255, ${envAlpha})`;
+  ctx.fillRect(0, 0, width, height);
+  
+  // Draw lens based on type
+  ctx.strokeStyle = '#0ff';
+  ctx.lineWidth = 4;
+  ctx.fillStyle = 'rgba(0, 200, 255, 0.1)';
+  
+  switch(lensType) {
+    case 'convex':
+      ctx.beginPath();
+      ctx.ellipse(lensX, centerY, 20, 80, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      break;
+    case 'concave':
+      ctx.beginPath();
+      ctx.ellipse(lensX, centerY, 10, 80, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      break;
+    case 'plano_convex':
+      ctx.beginPath();
+      ctx.moveTo(lensX - 15, centerY - 80);
+      ctx.lineTo(lensX + 20, centerY - 80);
+      ctx.quadraticCurveTo(lensX, centerY, lensX + 20, centerY + 80);
+      ctx.lineTo(lensX - 15, centerY + 80);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      break;
+    case 'plano_concave':
+      ctx.beginPath();
+      ctx.moveTo(lensX - 15, centerY - 80);
+      ctx.lineTo(lensX + 10, centerY - 80);
+      ctx.quadraticCurveTo(lensX, centerY, lensX + 10, centerY + 80);
+      ctx.lineTo(lensX - 15, centerY + 80);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      break;
+    case 'meniscus':
+      ctx.beginPath();
+      ctx.ellipse(lensX - 5, centerY, 25, 85, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      break;
+  }
+  
+  // Draw optical axis
+  ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(50, centerY);
+  ctx.lineTo(width - 50, centerY);
+  ctx.stroke();
+  
+  // Draw focal points
+  ctx.fillStyle = '#ff0';
+  ctx.beginPath();
+  ctx.arc(lensX + focalLength * 5, centerY, 4, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(lensX - focalLength * 5, centerY, 4, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Draw given parameters
+  ctx.fillStyle = '#bfe';
+  ctx.font = '14px Poppins';
+  ctx.fillText(`Given Parameters:`, 20, 30);
+  ctx.font = '12px Poppins';
+  ctx.fillText(`f = ${focalLength} cm`, 40, 50);
+  ctx.fillText(`Lens: ${lensType}`, 40, 70);
+  ctx.fillText(`Environment: n = ${envN}`, 40, 90);
+}
+
+function drawFlashlight(ctx, x, y, angle) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(angle * Math.PI / 180);
+  
+  // Flashlight body
+  ctx.fillStyle = 'orange';
+  ctx.fillRect(-12, -8, 48, 16);
+  
+  // Rotation handle
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+  ctx.fillRect(36, -12, 16, 16);
+  ctx.fillStyle = '#000';
+  ctx.fillRect(40, -8, 8, 8);
+  
+  // Light cone
+  const coneLength = 300;
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.lineTo(coneLength, -coneLength * 0.2);
+  ctx.lineTo(coneLength, coneLength * 0.2);
+  ctx.closePath();
+  
+  const gradient = ctx.createLinearGradient(0, 0, coneLength, 0);
+  gradient.addColorStop(0, 'rgba(255, 240, 200, 0.3)');
+  gradient.addColorStop(1, 'rgba(255, 240, 200, 0.02)');
+  ctx.fillStyle = gradient;
+  ctx.fill();
+  
+  ctx.restore();
+}
+
+function traceAndDrawRays(ctx, startX, startY, angle, experimentType) {
+  const angleRad = angle * Math.PI / 180;
+  const centerY = labCanvas.height / 2;
+  
+  // Draw rays based on ray count
+  const totalRays = lab.rayCount;
+  const maxOffset = (totalRays - 1) * 1.5;
+  
+  for (let i = 0; i < totalRays; i++) {
+    const offset = (i - (totalRays - 1) / 2) * 3;
+    const rayAngle = angle + offset;
+    
+    const alpha = 0.3 + 0.7 * (1 - Math.abs(offset) / maxOffset);
+    
+    if (experimentType === 'refraction') {
+      drawEnhancedRefractionRay(ctx, startX, startY, rayAngle, alpha, i);
+    } else {
+      drawEnhancedLensRay(ctx, startX, startY, rayAngle, alpha, i);
+    }
+  }
+}
+
+function drawEnhancedRefractionRay(ctx, startX, startY, rayAngle, alpha, rayIndex) {
+  const centerY = labCanvas.height / 2;
+  const interfaceX = 400;
+  const rayAngleRad = rayAngle * Math.PI / 180;
+  
+  // Calculate intersection with interface
+  const intersectionY = startY + Math.tan(rayAngleRad) * (interfaceX - startX);
+  
+  if (intersectionY >= 0 && intersectionY <= labCanvas.height) {
+    // Draw incident ray
+    ctx.strokeStyle = `rgba(255, 220, 80, ${alpha})`;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(startX, startY);
+    ctx.lineTo(interfaceX, intersectionY);
+    ctx.stroke();
+    
+    // Draw incident ray point and angle label
+    if (lab.showRayNumbers) {
+      ctx.fillStyle = '#ff0';
+      ctx.beginPath();
+      ctx.arc(interfaceX, intersectionY, 4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#000';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      
+      // Ray number
+      ctx.fillStyle = '#fff';
+      ctx.font = '12px Poppins';
+      ctx.fillText(`${rayIndex + 1}`, interfaceX - 15, intersectionY - 8);
+    }
+    
+    // Calculate refraction using Snell's Law
+    const n1 = lab.n1;
+    const n2 = lab.n2;
+    const incidentAngle = Math.abs(rayAngleRad);
+    const sinRefracted = (n1 / n2) * Math.sin(incidentAngle);
+    
+    if (Math.abs(sinRefracted) <= 1) {
+      // Refraction occurs - calculate proper refracted angle
+      const refractedAngle = Math.asin(sinRefracted);
+      const finalX = interfaceX + 200;
+      
+      // Determine direction based on which side of normal we're on
+      const direction = rayAngle < 0 ? -1 : 1;
+      const finalY = intersectionY + Math.tan(refractedAngle) * 200 * direction;
+      
+      // Draw refracted ray with proper bending
+      ctx.strokeStyle = `rgba(100, 255, 200, ${alpha})`;
+      ctx.beginPath();
+      ctx.moveTo(interfaceX, intersectionY);
+      ctx.lineTo(finalX, finalY);
+      ctx.stroke();
+      
+      // Draw refracted ray point
+      if (lab.showRayNumbers) {
+        ctx.fillStyle = '#0ff';
+        ctx.beginPath();
+        ctx.arc(finalX, finalY, 4, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#000';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+      }
+      
+      // ALWAYS DRAW REFLECTION (broken line) even when refraction occurs
+      ctx.strokeStyle = `rgba(255, 100, 255, ${alpha * 0.7})`;
+      ctx.setLineDash([5, 3]); // Broken line for reflection
+      ctx.beginPath();
+      const reflectionAngle = -rayAngle; // Law of reflection
+      const reflectionAngleRad = reflectionAngle * Math.PI / 180;
+      const reflectedX = interfaceX - 150;
+      const reflectedY = intersectionY + Math.tan(reflectionAngleRad) * 150;
+      
+      ctx.moveTo(interfaceX, intersectionY);
+      ctx.lineTo(reflectedX, reflectedY);
+      ctx.stroke();
+      ctx.setLineDash([]); // Reset to solid line
+      
+      // Draw reflected ray point
+      if (lab.showRayNumbers) {
+        ctx.fillStyle = '#f0f';
+        ctx.beginPath();
+        ctx.arc(reflectedX, reflectedY, 4, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#000';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+      }
+      
+      // Draw angle indicators
+      drawEnhancedAngleIndicator(ctx, interfaceX, intersectionY, rayAngle, refractedAngle * 180 / Math.PI, rayIndex);
+      
+    } else {
+      // Total Internal Reflection - only reflection occurs
+      ctx.strokeStyle = `rgba(255, 100, 100, ${alpha})`;
+      ctx.setLineDash([5, 3]); // Broken line for TIR
+      ctx.beginPath();
+      const reflectionAngle = -rayAngle; // Law of reflection
+      const reflectionAngleRad = reflectionAngle * Math.PI / 180;
+      const reflectedX = interfaceX - 150;
+      const reflectedY = intersectionY + Math.tan(reflectionAngleRad) * 150;
+      
+      ctx.moveTo(interfaceX, intersectionY);
+      ctx.lineTo(reflectedX, reflectedY);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      
+      // Draw reflected ray point
+      if (lab.showRayNumbers) {
+        ctx.fillStyle = '#f0f';
+        ctx.beginPath();
+        ctx.arc(reflectedX, reflectedY, 4, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#000';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+      }
+    }
+  }
+}
+
+function drawEnhancedLensRay(ctx, startX, startY, rayAngle, alpha, rayIndex) {
+  const centerY = labCanvas.height / 2;
+  const lensX = 400;
+  const focalLength = parseFloat(document.getElementById('focalLength').value) || 10;
+  const lensType = document.getElementById('lensType').value;
+  const rayAngleRad = rayAngle * Math.PI / 180;
+  
+  ctx.strokeStyle = `rgba(255, 220, 80, ${alpha})`;
+  ctx.lineWidth = 2;
+  
+  // Calculate intersection with lens
+  const intersectionX = lensX;
+  const intersectionY = startY + Math.tan(rayAngleRad) * (lensX - startX);
+  
+  if (intersectionY >= centerY - 80 && intersectionY <= centerY + 80) {
+    // Draw incident ray to lens
+    ctx.beginPath();
+    ctx.moveTo(startX, startY);
+    ctx.lineTo(lensX, intersectionY);
+    ctx.stroke();
+    
+    // Draw incident ray point
+    if (lab.showRayNumbers) {
+      ctx.fillStyle = '#ff0';
+      ctx.beginPath();
+      ctx.arc(lensX, intersectionY, 4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#000';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      
+      ctx.fillStyle = '#fff';
+      ctx.font = '12px Poppins';
+      ctx.fillText(`${rayIndex + 1}`, lensX - 15, intersectionY - 8);
+    }
+    
+    // IMPROVED LENS RAY BENDING - More realistic physics
+    let refractedAngle;
+    const distanceFromCenter = (intersectionY - centerY);
+    const lensEffect = distanceFromCenter / 80; // -1 to 1 from top to bottom
+    
+    // Different bending based on lens type with proper physics
+    switch(lensType) {
+      case 'convex':
+        // Rays converge toward focal point - proper convex lens behavior
+        refractedAngle = rayAngle - (distanceFromCenter * 0.8) / focalLength;
+        break;
+      case 'concave':
+        // Rays diverge as if coming from focal point - proper concave lens behavior
+        refractedAngle = rayAngle + (distanceFromCenter * 0.8) / focalLength;
+        break;
+      case 'plano_convex':
+        refractedAngle = rayAngle - (distanceFromCenter * 0.6) / focalLength;
+        break;
+      case 'plano_concave':
+        refractedAngle = rayAngle + (distanceFromCenter * 0.6) / focalLength;
+        break;
+      case 'meniscus':
+        refractedAngle = rayAngle - (distanceFromCenter * 0.5) / focalLength;
+        break;
+      default:
+        refractedAngle = rayAngle;
+    }
+    
+    const refractedAngleRad = refractedAngle * Math.PI / 180;
+    const finalX = lensX + 200;
+    const finalY = intersectionY + Math.tan(refractedAngleRad) * 200;
+    
+    // Draw refracted ray with proper bending
+    ctx.strokeStyle = `rgba(100, 255, 200, ${alpha})`;
+    ctx.beginPath();
+    ctx.moveTo(lensX, intersectionY);
+    ctx.lineTo(finalX, finalY);
+    ctx.stroke();
+    
+    // Draw refracted ray point
+    if (lab.showRayNumbers) {
+      ctx.fillStyle = '#0ff';
+      ctx.beginPath();
+      ctx.arc(finalX, finalY, 4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#000';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+    
+    // For lenses, also show reflection (broken line)
+    ctx.strokeStyle = `rgba(255, 100, 255, ${alpha * 0.5})`;
+    ctx.setLineDash([5, 3]);
+    ctx.beginPath();
+    const reflectionAngle = -rayAngle; // Simple reflection
+    const reflectionAngleRad = reflectionAngle * Math.PI / 180;
+    const reflectedX = lensX - 100;
+    const reflectedY = intersectionY + Math.tan(reflectionAngleRad) * 100;
+    
+    ctx.moveTo(lensX, intersectionY);
+    ctx.lineTo(reflectedX, reflectedY);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    
+    // Draw special rays for convex lens
+    if (lensType === 'convex') {
+      // Ray through center continues straight
+      if (Math.abs(lensEffect) < 0.1) {
+        ctx.strokeStyle = `rgba(255, 255, 100, ${alpha * 0.7})`;
+        ctx.setLineDash([2, 2]);
+        ctx.beginPath();
+        ctx.moveTo(lensX, intersectionY);
+        ctx.lineTo(lensX + 200, intersectionY);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+      
+      // Ray parallel to axis goes through focal point
+      if (Math.abs(rayAngle) < 5) {
+        const focalX = lensX + focalLength * 5;
+        ctx.strokeStyle = `rgba(100, 255, 255, ${alpha * 0.7})`;
+        ctx.setLineDash([2, 2]);
+        ctx.beginPath();
+        ctx.moveTo(lensX, intersectionY);
+        ctx.lineTo(focalX, centerY);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+    }
+  }
+}
+
+function drawEnhancedAngleIndicator(ctx, x, y, incidentAngle, refractedAngle, rayIndex) {
+  const radius = 25 + rayIndex * 5; // Different radius for each ray
+  
+  // Draw incident angle arc
+  ctx.strokeStyle = 'rgba(255, 220, 80, 0.7)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.arc(x, y, radius, -Math.PI/2, (-Math.PI/2) + (incidentAngle * Math.PI/180));
+  ctx.stroke();
+  
+  // Draw refracted angle arc
+  ctx.strokeStyle = 'rgba(100, 255, 200, 0.7)';
+  ctx.beginPath();
+  ctx.arc(x, y, radius, -Math.PI/2, (-Math.PI/2) + (refractedAngle * Math.PI/180));
+  ctx.stroke();
+  
+  // Draw angle labels
+  ctx.fillStyle = 'rgba(255, 220, 80, 0.9)';
+  ctx.font = '10px Poppins';
+  ctx.fillText(`θ₁=${Math.abs(incidentAngle).toFixed(1)}°`, x + radius + 5, y - 10);
+  
+  ctx.fillStyle = 'rgba(100, 255, 200, 0.9)';
+  ctx.fillText(`θ₂=${Math.abs(refractedAngle).toFixed(1)}°`, x + radius + 5, y + 15);
+}
+
+function updateRealTimeDisplays() {
+  const θ1 = lab.flashlight.angle;
+  document.getElementById('angle1Display').textContent = `${θ1.toFixed(2)}°`;
+  
+  // Calculate refracted angle
+  const n1 = lab.n1;
+  const n2 = lab.n2;
+  const θ1_rad = θ1 * Math.PI / 180;
+  const sinθ2 = (n1 / n2) * Math.sin(Math.abs(θ1_rad));
+  
+  if (Math.abs(sinθ2) <= 1) {
+    const θ2 = Math.asin(sinθ2) * 180 / Math.PI;
+    document.getElementById('angle2Display').textContent = `${θ2.toFixed(2)}°`;
+  } else {
+    document.getElementById('angle2Display').textContent = 'TIR';
+  }
+  
+  // Reflection angle is always equal to incident angle
+  document.getElementById('reflectionAngleDisplay').textContent = `${θ1.toFixed(2)}°`;
+  
+  // Calculate and display critical angle
+  if (n2 < n1) {
+    const criticalAngle = Math.asin(n2/n1) * 180 / Math.PI;
+    document.getElementById('criticalAngleDisplay').textContent = `${criticalAngle.toFixed(2)}°`;
+  } else {
+    document.getElementById('criticalAngleDisplay').textContent = 'N/A';
+  }
+}
+
+/* -------------------------
+   Touch/Mouse Interactions
+   ------------------------- */
+labCanvas.addEventListener('mousedown', handlePointerStart);
+labCanvas.addEventListener('touchstart', handlePointerStart, { passive: false });
+
+labCanvas.addEventListener('mousemove', handlePointerMove);
+labCanvas.addEventListener('touchmove', handlePointerMove, { passive: false });
+
+window.addEventListener('mouseup', handlePointerEnd);
+window.addEventListener('touchend', handlePointerEnd);
+
+function handlePointerStart(e) {
+  e.preventDefault();
+  const rect = labCanvas.getBoundingClientRect();
+  const clientX = e.clientX || (e.touches && e.touches[0].clientX);
+  const clientY = e.clientY || (e.touches && e.touches[0].clientY);
+  
+  if (!clientX || !clientY) return;
+  
+  const mx = clientX - rect.left;
+  const my = clientY - rect.top;
+  
+  const handleX = lab.flashlight.x + Math.cos(lab.flashlight.angle * Math.PI/180) * 44;
+  const handleY = lab.flashlight.y + Math.sin(lab.flashlight.angle * Math.PI/180) * 44;
+  const d = Math.hypot(mx - handleX, my - handleY);
+  
+  if (d < 25) {
+    rotating = true;
+    labCanvas.style.cursor = 'grabbing';
+  } else if (mx > lab.flashlight.x - 30 && mx < lab.flashlight.x + 60 && 
+             my > lab.flashlight.y - 30 && my < lab.flashlight.y + 30) {
+    dragging = true;
+    dragOffset.x = mx - lab.flashlight.x;
+    dragOffset.y = my - lab.flashlight.y;
+    labCanvas.style.cursor = 'grabbing';
+  }
+}
+
+function handlePointerMove(e) {
+  if (!dragging && !rotating) return;
+  
+  e.preventDefault();
+  const rect = labCanvas.getBoundingClientRect();
+  const clientX = e.clientX || (e.touches && e.touches[0].clientX);
+  const clientY = e.clientY || (e.touches && e.touches[0].clientY);
+  
+  if (!clientX || !clientY) return;
+  
+  const mx = clientX - rect.left;
+  const my = clientY - rect.top;
+  
+  if (dragging) {
+    lab.flashlight.x = Math.max(50, Math.min(labCanvas.width - 50, mx - dragOffset.x));
+    lab.flashlight.y = Math.max(50, Math.min(labCanvas.height - 50, my - dragOffset.y));
+    renderLab();
+  }
+  if (rotating) {
+    const dx = mx - lab.flashlight.x;
+    const dy = my - lab.flashlight.y;
+    lab.flashlight.angle = Math.atan2(dy, dx) * 180 / Math.PI;
+    renderLab();
+  }
+}
+
+function handlePointerEnd() {
+  dragging = false;
+  rotating = false;
+  labCanvas.style.cursor = 'default';
+}
+
+/* -------------------------
+   Initialization
+   ------------------------- */
+setTimeout(() => {
+  chooseMode('calculator');
+  setCalcMode('snell');
+  updateLabInterface();
+  renderLab();
+}, 100);
+</script>
+</body>
+</html>
